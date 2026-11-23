@@ -1,0 +1,349 @@
+/* ==========================================================================
+   Lexicon — Ultra-Focused Monochrome IDE Workspace (Codex / Antigravity / Claude)
+   ========================================================================== */
+
+:root {
+  --bg-app: #0A0A0B;
+  --bg-sidebar: #111113;
+  --bg-surface: #141416;
+  --bg-elevated: #1C1C1F;
+  --bg-hover: #232327;
+  --bg-composer: #161618;
+  --border: #1F1F23;
+  --border-strong: #2E2E34;
+  --text-primary: #EDEDEF;
+  --text-secondary: #9898A2;
+  --text-muted: #5F5F69;
+  --btn-bg: #F2F2F4;
+  --btn-text: #0A0A0B;
+  --btn-hover: #FFFFFF;
+  --code-bg: #1E1E22;
+  --code-border: #2C2C32;
+  --success: #4ADE80;
+  --success-soft: rgba(74, 222, 128, 0.10);
+  --warning: #FBBF24;
+  --warning-soft: rgba(251, 191, 36, 0.10);
+  --danger: #F87171;
+  --danger-soft: rgba(248, 113, 113, 0.10);
+  --dock-bg: rgba(18, 18, 20, 0.92);
+  --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.8);
+  --shadow-pill: 0 1px 4px rgba(0, 0, 0, 0.35);
+  --spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+html.light {
+  --bg-app: #FAFAFB;
+  --bg-sidebar: #F2F2F4;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F4F4F6;
+  --bg-hover: #EAEAEF;
+  --bg-composer: #FFFFFF;
+  --border: #E5E5EA;
+  --border-strong: #D1D1DA;
+  --text-primary: #111113;
+  --text-secondary: #52525B;
+  --text-muted: #848490;
+  --btn-bg: #111113;
+  --btn-text: #FFFFFF;
+  --btn-hover: #27272A;
+  --code-bg: #F1F1F4;
+  --code-border: #E2E2E8;
+  --success: #16A34A;
+  --success-soft: rgba(22, 163, 74, 0.10);
+  --warning: #D97706;
+  --warning-soft: rgba(217, 119, 6, 0.10);
+  --danger: #DC2626;
+  --danger-soft: rgba(220, 38, 38, 0.10);
+  --dock-bg: rgba(255, 255, 255, 0.94);
+  --shadow-modal: 0 20px 50px rgba(17, 17, 20, 0.14);
+  --shadow-pill: 0 1px 3px rgba(17, 17, 20, 0.08);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+body {
+  margin: 0;
+  font-family: "Geist", "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  background: var(--bg-app);
+  color: var(--text-primary);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.font-mono-code {
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.code-chip {
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  color: var(--text-primary);
+}
+
+.surface {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  transition: border-color 0.22s var(--spring), background 0.2s ease;
+}
+
+.elevated {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.sidebar-rail {
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+}
+
+.inspector-rail {
+  background: var(--bg-app);
+  border-left: 1px solid var(--border);
+  transition: width 0.3s var(--spring), opacity 0.22s ease;
+}
+
+.topbar-ide {
+  background: var(--bg-sidebar);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Monochrome High-Contrast Primary Button (Antigravity / Codex white pill) */
+.btn-primary {
+  background: var(--btn-bg);
+  color: var(--btn-text);
+  transition: background 0.16s ease, transform 0.22s var(--spring-bounce), opacity 0.16s ease;
+}
+.btn-primary:hover { background: var(--btn-hover); }
+.btn-primary:active { transform: scale(0.95); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.2s var(--spring-bounce);
+}
+.btn-ghost:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+.btn-ghost:active { transform: scale(0.96); }
+
+/* ==========================================================================
+   MORPHING SIDEBAR PILL (Pure monochrome, full rounded, zero one-sided border)
+   ========================================================================== */
+.nav-container { position: relative; }
+
+.sidebar-morph-pill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--bg-hover);
+  box-shadow: var(--shadow-pill);
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition:
+    transform 0.34s var(--spring),
+    height 0.3s var(--spring),
+    opacity 0.18s ease;
+}
+
+.nav-item {
+  position: relative;
+  z-index: 1;
+  color: var(--text-secondary);
+  border-radius: 8px;
+  transition: color 0.18s ease;
+}
+.nav-item:hover { color: var(--text-primary); }
+.nav-item.active {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   IDE COMPOSER BOX (Codex / Antigravity / Claude Bottom-Toolbar Style)
+   ========================================================================== */
+.hero-capture-wrap { position: relative; }
+
+.hero-capture {
+  position: relative;
+  z-index: 1;
+  background: var(--bg-composer);
+  border: 1px solid var(--border-strong);
+  border-radius: 16px;
+  transition:
+    border-color 0.24s var(--spring),
+    border-radius 0.36s var(--spring),
+    box-shadow 0.28s var(--spring);
+}
+
+.hero-capture:focus-within {
+  border-color: var(--text-muted);
+  border-radius: 18px;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.32);
+}
+
+.hero-capture-wrap.is-open .hero-capture {
+  border-radius: 18px;
+}
+
+.morph-collapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  transition: grid-template-rows 0.36s var(--spring), opacity 0.25s ease;
+}
+.morph-collapse.open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+.morph-collapse > div { overflow: hidden; }
+
+/* Morphing Timeframe Pill Selector */
+.tf-group {
+  position: relative;
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+}
+
+.tf-morph-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: 6px;
+  background: var(--bg-hover);
+  pointer-events: none;
+  transition: transform 0.32s var(--spring), width 0.32s var(--spring);
+}
+
+.tf-btn {
+  position: relative;
+  z-index: 1;
+  color: var(--text-muted);
+  transition: color 0.18s ease;
+}
+.tf-btn.active {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* ==========================================================================
+   MOBILE NATIVE FLOATING BOTTOM DOCK & SHEET
+   ========================================================================== */
+.mobile-dock {
+  background: var(--dock-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-strong);
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  border-radius: 20px;
+  padding: 4px;
+}
+
+.mobile-dock-pill {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 0;
+  border-radius: 15px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-strong);
+  pointer-events: none;
+  transition: transform 0.36s var(--spring), width 0.32s var(--spring);
+}
+
+.mobile-tab-btn {
+  position: relative;
+  z-index: 1;
+  color: var(--text-muted);
+  transition: color 0.18s ease, transform 0.2s var(--spring-bounce);
+}
+.mobile-tab-btn.active { color: var(--text-primary); }
+.mobile-tab-btn:active { transform: scale(0.92); }
+
+.bottom-sheet-panel {
+  background: var(--bg-surface);
+  border-top: 1px solid var(--border-strong);
+  border-radius: 22px 22px 0 0;
+  box-shadow: 0 -16px 48px rgba(0, 0, 0, 0.65);
+  animation: sheetUp 0.32s var(--spring);
+}
+
+@keyframes sheetUp {
+  from { transform: translateY(100%); opacity: 0.7; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes viewMorphIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in { animation: viewMorphIn 0.26s var(--spring) both; }
+
+@keyframes cardPop {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.stagger-item { animation: cardPop 0.3s var(--spring) both; }
+
+.flashcard-morph {
+  transition: border-color 0.24s ease, border-radius 0.32s var(--spring);
+}
+.flashcard-morph.is-revealed {
+  border-color: var(--border-strong);
+  border-radius: 18px;
+}
+
+.kbd {
+  font-family: "Geist Mono", "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10px;
+  padding: 2px 5px;
+  border-radius: 5px;
+  background: var(--code-bg);
+  border: 1px solid var(--code-border);
+  color: var(--text-muted);
+}
+
+.input-field {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  transition: border-color 0.16s ease;
+}
+.input-field:focus {
+  outline: none;
+  border-color: var(--border-strong);
+}
+
+.dialog-panel {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-modal);
+  border-radius: 16px;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -1,0 +1,793 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#0A0A0B" />
+  <title>Lexicon — IDE Vocabulary Workspace</title>
+  <link rel="manifest" href="./manifest.json" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/styles.css" />
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+  <!-- IDE Top Titlebar (Antigravity / Codex style) -->
+  <header class="topbar-ide h-11 px-3.5 flex items-center justify-between gap-3 shrink-0 select-none">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="flex items-center gap-2">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--text-primary);">
+          <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+        </svg>
+        <span class="font-semibold text-[13px] tracking-tight">Lexicon</span>
+      </div>
+      <span class="hidden sm:inline text-xs" style="color: var(--text-muted);">/</span>
+      <span id="topbarViewLabel" class="hidden sm:inline text-xs" style="color: var(--text-secondary);">Today</span>
+    </div>
+
+    <div class="flex items-center gap-1.5 shrink-0">
+      <button id="openQuickAddBar" class="hidden sm:inline-flex items-center gap-2 h-7 px-2.5 rounded-lg text-[12px] btn-ghost">
+        <span>Quick capture</span>
+        <span class="kbd">⌘K</span>
+      </button>
+      <button id="networkStatusPill" title="Toggle Online / Offline mode" class="h-7 px-2.5 rounded-lg text-[11px] font-mono-code flex items-center gap-1.5 btn-ghost">
+        <span id="networkDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+        <span id="networkLabel" class="hidden md:inline">Online</span>
+      </button>
+      <button id="themeToggleBtn" class="h-7 w-7 rounded-lg flex items-center justify-center btn-ghost" title="Toggle Dark / Light contrast theme" aria-label="Toggle theme">
+        <i id="themeIcon" data-lucide="sun" class="w-3.5 h-3.5"></i>
+      </button>
+      <button id="toggleInspectorBtn" class="hidden xl:flex h-7 w-7 rounded-lg items-center justify-center btn-ghost" title="Toggle Progress Inspector Pane" aria-label="Toggle right pane">
+        <i data-lucide="panel-right" class="w-3.5 h-3.5"></i>
+      </button>
+      <button id="profileDrawerBtn" class="h-7 px-2 rounded-lg flex items-center gap-1.5 text-[11px] font-mono-code btn-ghost" title="Learning log & progress">
+        <span id="headerStreakCount" style="color: var(--text-primary);">0d</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 3-Pane IDE Workspace Shell -->
+  <div class="flex-1 flex min-h-0 overflow-hidden">
+
+    <!-- LEFT SIDEBAR (Codex / Claude Desktop Rail) -->
+    <aside id="sidebar" class="sidebar-rail hidden lg:flex w-60 flex-col justify-between p-2.5 shrink-0 overflow-hidden">
+      <div class="flex flex-col min-h-0 flex-1 space-y-4">
+        <!-- Top Action Button (like + New Conversation in Antigravity) -->
+        <button id="sidebarNewWordBtn" class="w-full h-8 px-3 rounded-lg text-[12px] font-medium flex items-center justify-between elevated hover:bg-[var(--bg-hover)] transition-colors">
+          <span class="flex items-center gap-2"><i data-lucide="plus" class="w-3.5 h-3.5"></i> New word</span>
+          <span class="kbd">⌘K</span>
+        </button>
+
+        <!-- Morphing Pill Primary Navigation -->
+        <div id="sidebarNavWrap" class="nav-container space-y-0.5">
+          <div id="sidebarMorphPill" class="sidebar-morph-pill" aria-hidden="true"></div>
+          <button data-tab="dashboard" class="nav-item active w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="terminal" class="w-3.5 h-3.5"></i> Today</span>
+          </button>
+          <button data-tab="vocabulary" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="book-open" class="w-3.5 h-3.5"></i> Vocabulary</span>
+            <span id="navVocabCount" class="font-mono-code text-[11px]" style="color: var(--text-muted);">0</span>
+          </button>
+          <button data-tab="review" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="layers" class="w-3.5 h-3.5"></i> Review Cards</span>
+            <span id="navDueCount" class="font-mono-code text-[11px]" style="color: var(--text-muted);">0</span>
+          </button>
+          <button data-tab="quiz" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i> Practice Quiz</span>
+          </button>
+          <button data-tab="recap" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="calendar" class="w-3.5 h-3.5"></i> Daily Recap</span>
+          </button>
+          <button data-tab="categories" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center justify-between">
+            <span class="flex items-center gap-2.5"><i data-lucide="hash" class="w-3.5 h-3.5"></i> Categories</span>
+          </button>
+          <button data-tab="settings" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center gap-2.5">
+            <i data-lucide="sliders-horizontal" class="w-3.5 h-3.5"></i> Settings
+          </button>
+          <button data-tab="backup" class="nav-item w-full px-2.5 py-1.5 text-[13px] flex items-center gap-2.5">
+            <i data-lucide="hard-drive" class="w-3.5 h-3.5"></i> Backup
+          </button>
+        </div>
+
+        <!-- Recents List in Sidebar (Just like Codex / Claude) -->
+        <div class="pt-3 border-t flex-1 min-h-0 flex flex-col" style="border-color: var(--border);">
+          <div class="px-2.5 mb-1.5 text-[11px] font-medium" style="color: var(--text-muted);">Recents</div>
+          <div id="sidebarRecentsList" class="space-y-0.5 overflow-y-auto flex-1 pr-1"></div>
+        </div>
+      </div>
+
+      <!-- Quiet Bottom Goal Status -->
+      <div class="pt-2.5 border-t space-y-1.5" style="border-color: var(--border);">
+        <div class="flex items-center justify-between text-[11px] px-1">
+          <span style="color: var(--text-muted);">Daily goal</span>
+          <span id="sidebarGoalText" class="font-mono-code" style="color: var(--text-secondary);">0 / 5</span>
+        </div>
+        <div class="w-full h-1 rounded-full overflow-hidden" style="background: var(--bg-hover);">
+          <div id="sidebarGoalBar" class="h-full rounded-full transition-all duration-500" style="width: 0%; background: var(--text-primary);"></div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER FOCUSED WORKSPACE -->
+    <main id="mainContent" class="flex-1 min-w-0 overflow-y-auto px-4 sm:px-8 py-6 sm:py-10 pb-28 lg:pb-10">
+      <div class="max-w-2xl mx-auto space-y-7">
+
+        <!-- =============================================================== -->
+        <!-- VIEW 1: TODAY (ANTIGRAVITY / CODEX ULTRA-FOCUSED STUDIO)        -->
+        <!-- =============================================================== -->
+        <section id="view-dashboard" class="space-y-7 animate-in">
+
+          <!-- Calm Focused Prompt Heading -->
+          <div class="pt-2 sm:pt-6 space-y-1.5">
+            <div id="dashboardDateTag" class="font-mono-code text-[11px]" style="color: var(--text-muted);">TODAY</div>
+            <h1 class="text-xl sm:text-2xl font-medium tracking-tight">What word did you discover?</h1>
+          </div>
+
+          <!-- IDE COMPOSER CAPTURE BOX (Type -> Enter -> Saved) -->
+          <div id="heroCaptureWrap" class="hero-capture-wrap">
+            <div class="hero-capture overflow-hidden">
+              <!-- Input Area -->
+              <div class="px-4 pt-3.5 pb-2.5">
+                <input id="inlineWordInput" type="text" autocomplete="off" spellcheck="true"
+                  placeholder="Type any word to auto-fill meaning, syllables & audio..."
+                  class="w-full bg-transparent text-[15px] sm:text-base focus:outline-none"
+                  style="color: var(--text-primary);" />
+              </div>
+
+              <!-- Smooth Unfolding Gemini / Offline Breakdown -->
+              <div id="inlineEnrichPanel" class="morph-collapse">
+                <div>
+                  <div class="mx-3 mb-2 rounded-xl border overflow-hidden" style="border-color: var(--border); background: var(--bg-app);">
+                    <div class="px-3.5 py-2 flex items-center justify-between text-[11px] font-mono-code border-b" style="border-color: var(--border); color: var(--text-muted);">
+                      <span id="inlineStatusText">Looking up...</span>
+                      <span id="inlineSourceTag" style="color: var(--text-secondary);"></span>
+                    </div>
+
+                    <div id="inlineResultBody" class="p-3.5 space-y-3 hidden">
+                      <div class="flex items-center justify-between gap-2 flex-wrap">
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span id="inlineResWord" class="text-base font-semibold"></span>
+                          <span id="inlineResSyllables" class="code-chip"></span>
+                          <span id="inlineResIpa" class="font-mono-code text-[11px]" style="color: var(--text-muted);"></span>
+                        </div>
+                        <button id="inlineListenBtn" type="button" class="btn-ghost h-7 px-2.5 rounded-lg text-[11px] flex items-center gap-1.5">
+                          <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Listen
+                        </button>
+                      </div>
+
+                      <div id="inlineMeaningsList" class="space-y-1.5"></div>
+
+                      <div id="inlineTipRow" class="text-[12px] leading-relaxed pl-3 border-l-2" style="border-color: var(--border-strong); color: var(--text-secondary);"></div>
+
+                      <div class="pt-1 flex flex-wrap items-center justify-between gap-2">
+                        <div class="flex items-center gap-1.5 flex-wrap" id="inlineCategoryPills"></div>
+                        <button id="inlineCustomizeBtn" type="button" class="text-[11px] hover:underline" style="color: var(--text-muted);">Edit details</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- IDE Composer Bottom Toolbar (just like Codex & Antigravity) -->
+              <div class="px-3.5 py-2.5 flex items-center justify-between gap-2 border-t" style="border-color: var(--border);">
+                <div class="flex items-center gap-2 text-[11px] min-w-0">
+                  <button id="inlineClearBtn" class="hidden h-6 px-2 rounded-md btn-ghost text-[11px]">Clear</button>
+                  <span id="composerEngineLabel" class="font-mono-code truncate" style="color: var(--text-muted);">Gemini / Offline Dict</span>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                  <span class="hidden sm:inline font-mono-code text-[10px]" style="color: var(--text-muted);">↵ save</span>
+                  <button id="inlineActionBtn" class="btn-primary h-7 w-7 sm:w-auto sm:px-3 rounded-full text-xs font-medium flex items-center justify-center gap-1.5" title="Lookup or Save">
+                    <span id="inlineActionLabel" class="hidden sm:inline">Save</span>
+                    <i data-lucide="arrow-up" class="w-3.5 h-3.5"></i>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quiet Try Prompts -->
+            <div class="flex items-center gap-2.5 text-[11px] mt-2.5 px-1" style="color: var(--text-muted);">
+              <span>Try</span>
+              <button type="button" data-quick-try="alacrity" class="inline-try code-chip hover:border-[var(--text-muted)] transition-colors">alacrity</button>
+              <button type="button" data-quick-try="equanimity" class="inline-try code-chip hover:border-[var(--text-muted)] transition-colors">equanimity</button>
+              <button type="button" data-quick-try="pithy" class="inline-try code-chip hover:border-[var(--text-muted)] transition-colors">pithy</button>
+            </div>
+          </div>
+
+          <!-- Inline Progress & Peaks for Mobile / Tablet (when right inspector pane is hidden below xl) -->
+          <div id="mobileProgressSection" class="xl:hidden space-y-4">
+            <div class="surface rounded-xl px-4 py-3 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div class="text-[11px]" style="color: var(--text-muted);">Today</div>
+                <div id="mobTodayCount" class="font-mono-code text-sm font-semibold mt-0.5">0 / 5</div>
+              </div>
+              <div>
+                <div class="text-[11px]" style="color: var(--text-muted);">Streak</div>
+                <div id="mobStreak" class="font-mono-code text-sm font-semibold mt-0.5">0d</div>
+              </div>
+              <div>
+                <div class="text-[11px]" style="color: var(--text-muted);">Due</div>
+                <div id="mobDueCount" class="font-mono-code text-sm font-semibold mt-0.5">0</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Captures Stream (Clean Codex-style feed) -->
+          <div class="space-y-2.5">
+            <div class="flex items-center justify-between px-0.5">
+              <span class="text-[11px] font-medium uppercase tracking-wider" style="color: var(--text-muted);">Recent Captures</span>
+              <button id="viewAllVocabBtn" class="text-[12px] hover:underline" style="color: var(--text-secondary);">All words →</button>
+            </div>
+            <div id="recentWordsList" class="surface rounded-xl divide-y overflow-hidden" style="border-color: var(--border);"></div>
+          </div>
+
+          <!-- Peaks Card shown inline below xl, or mirrored in Right Inspector on xl+ -->
+          <div class="xl:hidden surface rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-baseline gap-2">
+                <span class="text-xs font-medium">Learning Peaks</span>
+                <span id="mobPeakBadge" class="font-mono-code text-[11px]" style="color: var(--text-muted);">Peak: 0</span>
+              </div>
+              <div class="flex items-center gap-1" id="mobTimeframeBtns">
+                <button data-range="7" class="mob-tf-btn px-2 py-0.5 rounded text-[11px] font-mono-code">7D</button>
+                <button data-range="30" class="mob-tf-btn px-2 py-0.5 rounded text-[11px] font-mono-code">30D</button>
+                <button data-range="90" class="mob-tf-btn px-2 py-0.5 rounded text-[11px] font-mono-code">90D</button>
+              </div>
+            </div>
+            <div class="relative h-44 w-full">
+              <canvas id="peaksChartMobile"></canvas>
+            </div>
+          </div>
+
+        </section>
+
+        <!-- VIEW 2: VOCABULARY -->
+        <section id="view-vocabulary" class="hidden space-y-5 animate-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight">Vocabulary</h1>
+              <p class="text-xs mt-0.5" style="color: var(--text-secondary);" id="vocabSubtitle">Your personal dictionary.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="loadStarterBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs hidden">Load starter words</button>
+              <button id="vocabAddBtn" class="btn-primary h-8 px-3.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i> Add Word
+              </button>
+            </div>
+          </div>
+
+          <div class="surface rounded-xl p-2 flex flex-col md:flex-row items-stretch md:items-center gap-2">
+            <div class="relative flex-1">
+              <i data-lucide="search" class="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2" style="color: var(--text-muted);"></i>
+              <input id="vocabSearchInput" type="text" placeholder="Search words, meanings, examples..." class="input-field w-full h-8 pl-8 pr-3 rounded-lg text-xs" />
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+              <select id="vocabCategoryFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+              <select id="vocabPosFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+              <select id="vocabSortSelect" class="input-field h-8 px-2.5 rounded-lg text-xs">
+                <option value="recent">Recent</option>
+                <option value="az">A–Z</option>
+                <option value="mastery">Mastery</option>
+              </select>
+            </div>
+          </div>
+
+          <div id="vocabGrid" class="grid grid-cols-1 md:grid-cols-2 gap-3"></div>
+        </section>
+
+        <!-- VIEW 3: REVIEW CARDS -->
+        <section id="view-review" class="hidden space-y-5 animate-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight">Review Cards</h1>
+              <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Active recall flashcards with keyboard shortcuts.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <input id="reviewSearchInput" type="text" placeholder="Filter..." class="input-field h-8 px-2.5 rounded-lg text-xs w-28 sm:w-36" />
+              <select id="reviewCategoryFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+              <select id="reviewPosFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+              <button id="restartReviewBtn" class="btn-ghost h-8 px-2.5 rounded-lg text-xs">Restart</button>
+            </div>
+          </div>
+          <div id="reviewStage" class="max-w-xl mx-auto"></div>
+        </section>
+
+        <!-- VIEW 4: PRACTICE QUIZ -->
+        <section id="view-quiz" class="hidden space-y-5 animate-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight">Practice Quiz</h1>
+              <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Match your saved definitions to the right words.</p>
+            </div>
+            <div id="quizFilterControls" class="flex flex-wrap items-center gap-2">
+              <input id="quizSearchInput" type="text" placeholder="Filter..." class="input-field h-8 px-2.5 rounded-lg text-xs w-28 sm:w-36" />
+              <select id="quizCategoryFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+              <select id="quizPosFilter" class="input-field h-8 px-2.5 rounded-lg text-xs"></select>
+            </div>
+          </div>
+          <div id="quizStage" class="max-w-xl mx-auto"></div>
+        </section>
+
+        <!-- VIEW 5: DAILY RECAP -->
+        <section id="view-recap" class="hidden space-y-5 animate-in">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h1 class="text-lg font-semibold tracking-tight">Daily Recap</h1>
+              <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Words grouped by the calendar day you added them.</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <select id="recapQuickFilter" class="input-field h-8 px-2.5 rounded-lg text-xs">
+                <option value="all">All dates</option>
+                <option value="today">Today</option>
+                <option value="yesterday">Yesterday</option>
+                <option value="3days">3 days ago</option>
+                <option value="7days">7 days ago</option>
+                <option value="unknown">Date unknown</option>
+              </select>
+              <input id="recapDatePicker" type="date" class="input-field h-8 px-2.5 rounded-lg text-xs" />
+            </div>
+          </div>
+          <div id="recapList" class="space-y-5"></div>
+        </section>
+
+        <!-- VIEW 6: CATEGORIES -->
+        <section id="view-categories" class="hidden space-y-5 animate-in">
+          <div>
+            <h1 class="text-lg font-semibold tracking-tight">Categories</h1>
+            <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Group your vocabulary cleanly. Deleting a category preserves its words.</p>
+          </div>
+          <div class="surface rounded-xl p-3 flex flex-col sm:flex-row gap-2">
+            <input id="newCategoryInput" type="text" placeholder="New category name..." class="input-field flex-1 h-9 px-3 rounded-lg text-xs" />
+            <button id="createCategoryBtn" class="btn-primary h-9 px-4 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> Create
+            </button>
+          </div>
+          <div id="categoriesList" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"></div>
+        </section>
+
+        <!-- VIEW 7: SETTINGS -->
+        <section id="view-settings" class="hidden space-y-5 animate-in">
+          <div>
+            <h1 class="text-lg font-semibold tracking-tight">Settings &amp; AI</h1>
+            <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Gemini enrichment, offline dictionary fallback, daily goal, and voice playback.</p>
+          </div>
+
+          <div class="surface rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <h2 class="text-sm font-medium">Gemini Auto-Enrichment &amp; Offline Mode</h2>
+                <p class="text-xs mt-0.5" style="color: var(--text-muted);">Online uses Gemini (if key set) or Free Dictionary. Offline uses the embedded Oxford-style lexicon.</p>
+              </div>
+              <label class="inline-flex items-center gap-2 text-xs cursor-pointer shrink-0">
+                <input id="simulateOfflineToggle" type="checkbox" class="accent-white w-4 h-4" />
+                <span class="font-mono-code text-[11px]">Simulate Offline</span>
+              </label>
+            </div>
+            <div class="space-y-1.5">
+              <label for="geminiKeyInput" class="text-xs" style="color: var(--text-secondary);">Optional Gemini API Key (stored locally)</label>
+              <div class="flex gap-2">
+                <input id="geminiKeyInput" type="password" placeholder="AIza... (optional)" class="input-field flex-1 h-9 px-3 rounded-lg text-xs font-mono-code" />
+                <button id="saveGeminiKeyBtn" class="btn-primary h-9 px-4 rounded-lg text-xs font-medium">Save</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="surface rounded-xl p-5 flex items-center justify-between gap-4">
+            <div>
+              <h2 class="text-sm font-medium">Daily Word Target</h2>
+              <p class="text-xs mt-0.5" style="color: var(--text-muted);">Words added or reviewed each day to maintain your habit streak.</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <input id="dailyGoalInput" type="number" min="1" max="50" value="5" class="input-field w-16 h-9 px-2 rounded-lg text-xs font-mono-code text-center" />
+              <button id="saveGoalBtn" class="btn-ghost h-9 px-3 rounded-lg text-xs">Update</button>
+            </div>
+          </div>
+
+          <div class="surface rounded-xl p-5 space-y-4">
+            <div class="flex items-center justify-between">
+              <div>
+                <h2 class="text-sm font-medium">Offline Pronunciation Voice</h2>
+                <p class="text-xs mt-0.5" style="color: var(--text-muted);">On-device speech synthesis works completely offline.</p>
+              </div>
+              <button id="refreshVoicesBtn" class="btn-ghost h-8 px-2.5 rounded-lg text-xs flex items-center gap-1.5">
+                <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
+              </button>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="space-y-1">
+                <label for="voiceSelect" class="text-xs" style="color: var(--text-secondary);">Voice</label>
+                <select id="voiceSelect" class="input-field w-full h-9 px-3 rounded-lg text-xs"></select>
+              </div>
+              <div class="space-y-1">
+                <label for="speedSelect" class="text-xs" style="color: var(--text-secondary);">Playback speed</label>
+                <select id="speedSelect" class="input-field w-full h-9 px-3 rounded-lg text-xs">
+                  <option value="0.75">Slow (0.75×)</option>
+                  <option value="1">Normal (1.0×)</option>
+                  <option value="1.25">Fast (1.25×)</option>
+                </select>
+              </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+              <input id="previewWordInput" type="text" value="ephemeral" class="input-field flex-1 h-9 px-3 rounded-lg text-xs" placeholder="Preview word" />
+              <div class="flex gap-2">
+                <button id="previewVoiceBtn" class="btn-primary h-9 px-3.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                  <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Preview
+                </button>
+                <button id="stopVoiceBtn" class="btn-ghost h-9 px-3 rounded-lg text-xs">Stop</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 8: BACKUP -->
+        <section id="view-backup" class="hidden space-y-5 animate-in">
+          <div>
+            <h1 class="text-lg font-semibold tracking-tight">Backup &amp; Data</h1>
+            <p class="text-xs mt-0.5" style="color: var(--text-secondary);">Local-first storage. Export or import portable JSON backups anytime.</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="surface rounded-xl p-5 space-y-3">
+              <h2 class="text-sm font-medium">Export</h2>
+              <p class="text-xs" style="color: var(--text-muted);">Download your words, syllables, IPA, definitions, examples, and categories.</p>
+              <div class="flex flex-wrap gap-2 pt-1">
+                <button id="exportJsonBtn" class="btn-primary h-9 px-3.5 rounded-lg text-xs font-medium flex items-center gap-1.5">
+                  <i data-lucide="download" class="w-3.5 h-3.5"></i> Download JSON
+                </button>
+                <button id="exportFullProfileBtn" class="btn-ghost h-9 px-3 rounded-lg text-xs">Full Profile</button>
+              </div>
+            </div>
+
+            <div class="surface rounded-xl p-5 space-y-3">
+              <h2 class="text-sm font-medium">Import</h2>
+              <select id="importMethodSelect" class="input-field w-full h-9 px-3 rounded-lg text-xs">
+                <option value="merge">Merge with collection (no duplicates)</option>
+                <option value="replace">Replace entire collection</option>
+              </select>
+              <label class="btn-ghost h-9 px-3 rounded-lg text-xs flex items-center justify-center gap-2 cursor-pointer">
+                <i data-lucide="upload" class="w-3.5 h-3.5"></i> Choose JSON file
+                <input id="importJsonInput" type="file" accept=".json,application/json" class="hidden" />
+              </label>
+            </div>
+          </div>
+
+          <div class="surface rounded-xl p-5 space-y-3">
+            <div class="flex items-center justify-between">
+              <h2 class="text-sm font-medium">Offline Readiness</h2>
+              <span class="font-mono-code text-[11px]" style="color: var(--text-muted);" id="offlineDictCountBadge">Embedded Lexicon Ready</span>
+            </div>
+            <p class="text-xs leading-relaxed" style="color: var(--text-secondary);">
+              Storage, search, flashcards, quizzes, daily recap, learning peaks, offline dictionary definitions, syllabification, and on-device speech synthesis work 100% offline.
+            </p>
+            <div class="pt-1 flex flex-wrap gap-2">
+              <button id="resetDemoBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs">Restore starter 10 words</button>
+              <button id="clearAllDataBtn" class="h-8 px-3 rounded-lg text-xs font-medium" style="background: var(--danger-soft); color: var(--danger);">Clear all vocabulary</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- RIGHT IDE INSPECTOR PANE (Like Codex Changes/Sources & Claude Content Pane) -->
+    <aside id="rightInspector" class="inspector-rail hidden xl:flex w-80 flex-col p-4 space-y-4 shrink-0 overflow-y-auto">
+      <!-- Progress Summary Card -->
+      <div class="surface rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium">Progress</span>
+          <span id="kpiTodayPct" class="font-mono-code text-[11px]" style="color: var(--success);">0%</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="elevated rounded-lg p-2.5">
+            <div class="text-[11px]" style="color: var(--text-muted);">Today</div>
+            <div id="kpiTodayCount" class="font-mono-code text-sm font-semibold mt-0.5">0 / 5</div>
+          </div>
+          <div class="elevated rounded-lg p-2.5">
+            <div class="text-[11px]" style="color: var(--text-muted);">Streak</div>
+            <div class="flex items-baseline gap-1.5 mt-0.5">
+              <span id="kpiStreak" class="font-mono-code text-sm font-semibold">0d</span>
+              <span id="kpiBestStreak" class="font-mono-code text-[10px]" style="color: var(--text-muted);">best 0d</span>
+            </div>
+          </div>
+          <div class="elevated rounded-lg p-2.5">
+            <div class="text-[11px]" style="color: var(--text-muted);">Collected</div>
+            <div class="flex items-baseline gap-1.5 mt-0.5">
+              <span id="kpiTotalWords" class="font-mono-code text-sm font-semibold">0</span>
+              <span id="kpiMasteredSub" class="text-[10px]" style="color: var(--text-muted);">0 mastered</span>
+            </div>
+          </div>
+          <div class="elevated rounded-lg p-2.5">
+            <div class="text-[11px]" style="color: var(--text-muted);">Due</div>
+            <div id="kpiDueCount" class="font-mono-code text-sm font-semibold mt-0.5">0</div>
+          </div>
+        </div>
+        <button id="dashReviewBtn" class="btn-ghost w-full h-8 rounded-lg text-xs flex items-center justify-center gap-1.5">
+          Start review session <i data-lucide="arrow-right" class="w-3 h-3"></i>
+        </button>
+      </div>
+
+      <!-- Learning Peaks Inspector Card -->
+      <div class="surface rounded-xl p-4 space-y-3">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs font-medium">Learning Peaks</span>
+          <div class="tf-group" id="timeframeButtons">
+            <div id="tfMorphPill" class="tf-morph-pill" aria-hidden="true"></div>
+            <button data-range="7" class="tf-btn active px-2 py-0.5 text-[10px] font-mono-code">7D</button>
+            <button data-range="14" class="tf-btn px-2 py-0.5 text-[10px] font-mono-code">14D</button>
+            <button data-range="30" class="tf-btn px-2 py-0.5 text-[10px] font-mono-code">30D</button>
+            <button data-range="90" class="tf-btn px-2 py-0.5 text-[10px] font-mono-code">90D</button>
+          </div>
+        </div>
+        <div class="relative h-44 w-full">
+          <canvas id="peaksChart"></canvas>
+        </div>
+        <div class="flex items-center justify-between text-[11px] font-mono-code pt-1 border-t" style="border-color: var(--border); color: var(--text-muted);">
+          <span id="peakDayBadge">Peak: 0</span>
+          <span id="avgDailyRate">Avg: 0/d</span>
+        </div>
+      </div>
+
+      <!-- Sources / Engine Status (just like Codex Sources card) -->
+      <div class="surface rounded-xl p-4 space-y-2.5">
+        <div class="text-xs font-medium">Enrichment Engine</div>
+        <div class="space-y-1.5 text-[11px]" style="color: var(--text-secondary);">
+          <div class="flex items-center justify-between">
+            <span>Online lookup</span>
+            <span class="font-mono-code" style="color: var(--success);">ready</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Offline lexicon</span>
+            <span id="inspectorDictCount" class="font-mono-code">74 words</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span>Speech synthesis</span>
+            <span class="font-mono-code">on-device</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- NATIVE MOBILE FLOATING BOTTOM DOCK -->
+  <nav id="mobileBottomDock" class="lg:hidden fixed bottom-3 left-3 right-3 z-40 max-w-md mx-auto" style="padding-bottom: env(safe-area-inset-bottom);">
+    <div id="mobileDockInner" class="mobile-dock relative grid grid-cols-5 items-center">
+      <div id="mobileDockPill" class="mobile-dock-pill" aria-hidden="true"></div>
+      <button data-mobile-tab="dashboard" class="mobile-tab-btn active flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium">
+        <i data-lucide="terminal" class="w-4 h-4"></i>
+        <span>Today</span>
+      </button>
+      <button data-mobile-tab="vocabulary" class="mobile-tab-btn flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium">
+        <i data-lucide="book-open" class="w-4 h-4"></i>
+        <span>Library</span>
+      </button>
+      <button data-mobile-tab="review" class="mobile-tab-btn flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium">
+        <i data-lucide="layers" class="w-4 h-4"></i>
+        <span>Review</span>
+      </button>
+      <button data-mobile-tab="quiz" class="mobile-tab-btn flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium">
+        <i data-lucide="check-circle-2" class="w-4 h-4"></i>
+        <span>Quiz</span>
+      </button>
+      <button id="mobileMoreBtn" data-mobile-tab="more" class="mobile-tab-btn flex flex-col items-center justify-center py-2 gap-0.5 text-[10px] font-medium">
+        <i data-lucide="layout-grid" class="w-4 h-4"></i>
+        <span>More</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MOBILE NATIVE BOTTOM SHEET -->
+  <div id="mobileMoreSheet" class="lg:hidden fixed inset-0 z-50 hidden items-end bg-black/65 backdrop-blur-sm">
+    <div class="bottom-sheet-panel w-full p-5 space-y-4" style="padding-bottom: calc(1.5rem + env(safe-area-inset-bottom));">
+      <div class="w-10 h-1 rounded-full mx-auto" style="background: var(--border-strong);"></div>
+      <div class="flex items-center justify-between">
+        <span class="text-sm font-medium">Workspace</span>
+        <button id="closeMobileSheetBtn" class="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style="color: var(--text-muted);" aria-label="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="grid grid-cols-2 gap-2.5">
+        <button data-sheet-tab="recap" class="sheet-nav-btn elevated rounded-xl p-3.5 text-left flex items-center gap-2.5 text-xs font-medium">
+          <i data-lucide="calendar" class="w-4 h-4"></i> Daily Recap
+        </button>
+        <button data-sheet-tab="categories" class="sheet-nav-btn elevated rounded-xl p-3.5 text-left flex items-center gap-2.5 text-xs font-medium">
+          <i data-lucide="hash" class="w-4 h-4"></i> Categories
+        </button>
+        <button data-sheet-tab="settings" class="sheet-nav-btn elevated rounded-xl p-3.5 text-left flex items-center gap-2.5 text-xs font-medium">
+          <i data-lucide="sliders-horizontal" class="w-4 h-4"></i> Settings &amp; AI
+        </button>
+        <button data-sheet-tab="backup" class="sheet-nav-btn elevated rounded-xl p-3.5 text-left flex items-center gap-2.5 text-xs font-medium">
+          <i data-lucide="hard-drive" class="w-4 h-4"></i> Backup &amp; Data
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- COMMAND PALETTE QUICK-ADD / EDIT MODAL -->
+  <div id="quickAddModal" class="fixed inset-0 z-50 hidden items-start justify-center p-3 sm:p-6 pt-12 sm:pt-20 bg-black/70 backdrop-blur-sm overflow-y-auto">
+    <div class="dialog-panel w-full max-w-lg overflow-hidden animate-in">
+      <div class="px-4 py-3 flex items-center gap-3 border-b" style="border-color: var(--border);">
+        <span class="font-mono-code text-sm" style="color: var(--text-muted);">›</span>
+        <input id="quickWordInput" type="text" autocomplete="off" spellcheck="true" placeholder="Type any word..." class="flex-1 bg-transparent text-sm sm:text-base focus:outline-none" style="color: var(--text-primary);" />
+        <button id="quickLookupBtn" class="btn-ghost h-7 px-2.5 rounded-lg text-[11px] font-mono-code shrink-0">Enrich</button>
+        <button id="closeQuickAddBtn" class="p-1 rounded-lg hover:bg-[var(--bg-hover)]" style="color: var(--text-muted);" aria-label="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <div id="enrichStatusStrip" class="px-4 py-2 text-[11px] font-mono-code flex items-center justify-between border-b hidden" style="background: var(--bg-elevated); border-color: var(--border); color: var(--text-muted);">
+        <span id="enrichStatusText"></span>
+        <span id="enrichSourceBadge" style="color: var(--text-secondary);"></span>
+      </div>
+
+      <div id="quickAddBody" class="p-4 space-y-3.5 max-h-[65vh] overflow-y-auto">
+        <div id="quickEmptyHint" class="py-4 text-center space-y-3">
+          <div class="text-xs" style="color: var(--text-secondary);">Type a word and press <span class="kbd">↵</span> to auto-fill syllables, IPA, meanings &amp; examples.</div>
+          <div class="flex flex-wrap items-center justify-center gap-1.5" id="quickTryChips"></div>
+        </div>
+
+        <div id="quickResultWrap" class="hidden space-y-3.5">
+          <div class="elevated rounded-xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 id="resWordTitle" class="text-base font-semibold"></h3>
+                <span id="resSyllables" class="code-chip"></span>
+              </div>
+              <div id="resIpa" class="font-mono-code text-[11px] mt-1" style="color: var(--text-muted);"></div>
+            </div>
+            <button id="resListenBtn" class="btn-ghost h-7 px-2.5 rounded-lg text-xs flex items-center gap-1.5">
+              <i data-lucide="volume-2" class="w-3.5 h-3.5"></i> Listen
+            </button>
+          </div>
+
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-mono-code uppercase" style="color: var(--text-muted);">Select meanings</span>
+              <button id="toggleManualEditBtn" class="text-[11px] hover:underline" style="color: var(--text-secondary);">Edit details</button>
+            </div>
+            <div id="resMeaningsList" class="space-y-1.5"></div>
+          </div>
+
+          <div class="elevated rounded-xl p-3 space-y-1.5 text-xs">
+            <div id="resTip" class="leading-relaxed" style="color: var(--text-secondary);"></div>
+            <div id="resSynonyms" class="flex flex-wrap gap-1 pt-1"></div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Category</div>
+            <div id="resCategoryPills" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <div id="manualEditSection" class="hidden elevated rounded-xl p-3 space-y-2.5 border" style="border-color: var(--border-strong);">
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Syllables</label>
+                <input id="manualSyllables" type="text" class="input-field w-full h-8 px-2.5 rounded-lg text-xs font-mono-code mt-1" />
+              </div>
+              <div>
+                <label class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">IPA</label>
+                <input id="manualIpa" type="text" class="input-field w-full h-8 px-2.5 rounded-lg text-xs font-mono-code mt-1" />
+              </div>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <label class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">POS</label>
+                <select id="manualPos" class="input-field w-full h-8 px-2 rounded-lg text-xs mt-1">
+                  <option value="noun">noun</option>
+                  <option value="verb">verb</option>
+                  <option value="adjective">adjective</option>
+                  <option value="adverb">adverb</option>
+                  <option value="phrase">phrase</option>
+                </select>
+              </div>
+              <div class="col-span-2">
+                <label class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Definition</label>
+                <input id="manualDef" type="text" placeholder="Custom definition..." class="input-field w-full h-8 px-2.5 rounded-lg text-xs mt-1" />
+              </div>
+            </div>
+            <div>
+              <label class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Example</label>
+              <input id="manualExample" type="text" placeholder="Example sentence..." class="input-field w-full h-8 px-2.5 rounded-lg text-xs mt-1" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="px-4 py-3 border-t flex items-center justify-between gap-2" style="background: var(--bg-elevated); border-color: var(--border);">
+        <span class="text-[11px] hidden sm:inline" style="color: var(--text-muted);"><span class="kbd">↵</span> Save · <span class="kbd">ESC</span> Close</span>
+        <div class="flex items-center gap-2 ml-auto">
+          <button id="cancelQuickAddBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs">Cancel</button>
+          <button id="saveQuickWordBtn" class="btn-primary h-8 px-4 rounded-lg text-xs font-medium flex items-center gap-1.5 disabled:opacity-40" disabled>
+            <i data-lucide="check" class="w-3.5 h-3.5"></i> <span id="saveQuickBtnLabel">Save Word</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROFILE & LEARNING LOG DRAWER -->
+  <div id="profileDrawer" class="fixed inset-0 z-50 hidden justify-end bg-black/65 backdrop-blur-sm">
+    <div class="w-full max-w-sm h-full flex flex-col justify-between p-5 overflow-y-auto animate-in" style="background: var(--bg-surface); border-left: 1px solid var(--border-strong);">
+      <div class="space-y-5">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-medium">Learning Log</h2>
+            <p class="text-[11px]" style="color: var(--text-muted);">Saved locally on this device</p>
+          </div>
+          <button id="closeProfileDrawerBtn" class="p-1.5 rounded-lg hover:bg-[var(--bg-hover)]" style="color: var(--text-muted);">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5">
+          <div class="elevated rounded-xl p-3">
+            <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Reviewed</div>
+            <div id="profReviewedCount" class="text-xl font-semibold font-mono-code mt-1">0</div>
+          </div>
+          <div class="elevated rounded-xl p-3">
+            <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Quizzes</div>
+            <div id="profQuizCount" class="text-xl font-semibold font-mono-code mt-1">0</div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Resume</div>
+          <button id="resumeSavedReviewBtn" class="btn-ghost w-full h-9 px-3 rounded-xl text-xs flex items-center justify-between">
+            <span>Review Cards</span>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </button>
+          <button id="resumeSavedQuizBtn" class="btn-ghost w-full h-9 px-3 rounded-xl text-xs flex items-center justify-between">
+            <span>Practice Quiz</span>
+            <i data-lucide="arrow-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Session History</div>
+          <div id="sessionHistoryList" class="space-y-2 max-h-60 overflow-y-auto"></div>
+        </div>
+      </div>
+
+      <div class="pt-4 border-t space-y-2" style="border-color: var(--border);">
+        <button id="drawerExportProfileBtn" class="btn-ghost w-full h-9 rounded-xl text-xs">Export full profile</button>
+        <label class="btn-ghost w-full h-9 rounded-xl text-xs flex items-center justify-center cursor-pointer">
+          Restore full profile
+          <input id="drawerRestoreProfileInput" type="file" accept=".json" class="hidden" />
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- CONFIRMATION MODAL -->
+  <div id="confirmModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div class="dialog-panel w-full max-w-sm p-5 space-y-4 animate-in">
+      <h3 id="confirmTitle" class="text-sm font-medium">Confirm</h3>
+      <p id="confirmMessage" class="text-xs leading-relaxed" style="color: var(--text-secondary);"></p>
+      <div class="flex justify-end gap-2">
+        <button id="confirmCancelBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs">Cancel</button>
+        <button id="confirmOkBtn" class="h-8 px-3.5 rounded-lg text-xs font-medium text-white" style="background: var(--danger);">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RENAME CATEGORY MODAL -->
+  <div id="renameModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div class="dialog-panel w-full max-w-sm p-5 space-y-4 animate-in">
+      <h3 class="text-sm font-medium">Rename Category</h3>
+      <input id="renameCategoryInput" type="text" class="input-field w-full h-9 px-3 rounded-lg text-xs" />
+      <div class="flex justify-end gap-2">
+        <button id="renameCancelBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs">Cancel</button>
+        <button id="renameSaveBtn" class="btn-primary h-8 px-4 rounded-lg text-xs font-medium">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST CONTAINER -->
+  <div id="toastContainer" class="fixed bottom-20 lg:bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <script src="./js/dictionary.js"></script>
+  <script src="./js/app.js"></script>
+</body>
+</html>

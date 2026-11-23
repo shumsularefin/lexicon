@@ -1,0 +1,10 @@
+{
+  "name": "Lexicon — Focused Vocabulary App",
+  "short_name": "Lexicon",
+  "description": "Zero-friction, offline-first vocabulary studio with Gemini auto-enrichment and learning peaks.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D0D0F",
+  "theme_color": "#0D0D0F",
+  "orientation": "portrait-primary"
+}
