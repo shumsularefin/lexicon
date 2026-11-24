@@ -2190,6 +2190,21 @@
       if (mIn) mIn.classList.remove('hidden');
       if (mOut) mOut.classList.add('hidden');
     }
+    const sName = document.getElementById('sheetAccountName');
+    const sEmail = document.getElementById('sheetAccountEmail');
+    const sIn = document.getElementById('sheetSignInBtn');
+    const sOut = document.getElementById('sheetSignOutBtn');
+    if (user) {
+      if (sName) sName.textContent = user.displayName || 'Google User';
+      if (sEmail) sEmail.textContent = user.email || 'Synced';
+      if (sIn) sIn.classList.add('hidden');
+      if (sOut) sOut.classList.remove('hidden');
+    } else {
+      if (sName) sName.textContent = 'Not signed in';
+      if (sEmail) sEmail.textContent = 'Sync across phone & PC';
+      if (sIn) sIn.classList.remove('hidden');
+      if (sOut) sOut.classList.add('hidden');
+    }
     if (window.lucide) lucide.createIcons();
   }
 
@@ -2284,6 +2299,12 @@
       }
     });
 
+    const sSignIn = document.getElementById('sheetSignInBtn');
+    if (sSignIn) sSignIn.addEventListener('click', () => { closeMobileSheet(); handleGoogleSignIn(); });
+    const sSignOut = document.getElementById('sheetSignOutBtn');
+    if (sSignOut) sSignOut.addEventListener('click', async () => {
+      if (window.LexiconCloud) { await window.LexiconCloud.signOut(); closeMobileSheet(); showToast('Signed out · Local words kept safely.'); }
+    });
     const mSignIn = document.getElementById('mobileDrawerSignInBtn');
     if (mSignIn) mSignIn.addEventListener('click', handleGoogleSignIn);
     const mSignOut = document.getElementById('mobileDrawerSignOutBtn');

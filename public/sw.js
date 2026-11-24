@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lexicon-offline-v4';
+const CACHE_NAME = 'lexicon-offline-v5';
 const ASSETS = [
   '/',
   '/index.html',
