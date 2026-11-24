@@ -188,6 +188,56 @@
 
   function saveState() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    if (window.LexiconCloud) window.LexiconCloud.scheduleSync(state);
+  }
+
+  function mergeRemoteState(remote, isInitialMerge) {
+    if (!remote || typeof remote !== 'object') return;
+    if (!isInitialMerge) {
+      // Real-time update from another device: merge cleanly
+    }
+    const localMap = new Map(state.words.map(w => [w.word.toLowerCase(), w]));
+    const remoteWords = Array.isArray(remote.words) ? remote.words : [];
+    const mergedList = [];
+    const seen = new Set();
+
+    remoteWords.forEach(rw => {
+      if (!rw || !rw.word) return;
+      const key = rw.word.toLowerCase();
+      seen.add(key);
+      const lw = localMap.get(key);
+      if (lw) {
+        mergedList.push({
+          ...rw,
+          mastery: Math.max(lw.mastery || 0, rw.mastery || 0),
+          reviews: Math.max(lw.reviews || 0, rw.reviews || 0),
+          lastReviewed: lw.lastReviewed && rw.lastReviewed ? (lw.lastReviewed > rw.lastReviewed ? lw.lastReviewed : rw.lastReviewed) : (rw.lastReviewed || lw.lastReviewed || null)
+        });
+      } else {
+        mergedList.push(rw);
+      }
+    });
+    state.words.forEach(lw => {
+      const key = lw.word.toLowerCase();
+      if (!seen.has(key)) mergedList.push(lw);
+    });
+
+    state.words = mergedList;
+    if (Array.isArray(remote.categories)) {
+      remote.categories.forEach(c => { if (!state.categories.includes(c)) state.categories.push(c); });
+    }
+    if (remote.activityLog && typeof remote.activityLog === 'object') {
+      Object.keys(remote.activityLog).forEach(day => {
+        state.activityLog[day] = Math.max(state.activityLog[day] || 0, remote.activityLog[day] || 0);
+      });
+    }
+    if (remote.stats) {
+      state.stats.totalReviewed = Math.max(state.stats.totalReviewed || 0, remote.stats.totalReviewed || 0);
+      state.stats.quizzesCompleted = Math.max(state.stats.quizzesCompleted || 0, remote.stats.quizzesCompleted || 0);
+      state.stats.bestStreak = Math.max(state.stats.bestStreak || 0, remote.stats.bestStreak || 0);
+    }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+    renderActiveView();
   }
 
   let state = loadState();
@@ -2013,8 +2063,210 @@
     });
   }
 
-  // Boot
+  // =========================================================================
+  // 12. CLOUD AUTH, SYNC UI, STATS & TIMED FEEDBACK POPUP
+  // =========================================================================
+  let popupThumbedUp = false;
+
+  function renderAuthUI(user) {
+    const topLabel = document.getElementById('topAuthLabel');
+    const topIcon = document.getElementById('topAuthIcon');
+    const topAvatar = document.getElementById('topAuthAvatar');
+    const dAvatar = document.getElementById('drawerUserAvatar');
+    const dName = document.getElementById('drawerUserName');
+    const dEmail = document.getElementById('drawerUserEmail');
+    const signInBtn = document.getElementById('drawerGoogleSignInBtn');
+    const syncNowBtn = document.getElementById('drawerSyncNowBtn');
+    const signOutBtn = document.getElementById('drawerSignOutBtn');
+
+    if (user) {
+      const firstName = (user.displayName || user.email || 'Account').split(' ')[0];
+      if (topLabel) topLabel.textContent = firstName;
+      if (user.photoURL && topAvatar) {
+        topAvatar.innerHTML = `<img src="${escapeHtml(user.photoURL)}" alt="" class="w-4 h-4 rounded-full object-cover" />`;
+        topAvatar.classList.remove('hidden');
+        if (topIcon) topIcon.classList.add('hidden');
+      }
+      if (dAvatar) {
+        dAvatar.innerHTML = user.photoURL
+          ? `<img src="${escapeHtml(user.photoURL)}" alt="" class="w-8 h-8 rounded-full object-cover" />`
+          : escapeHtml(firstName.charAt(0).toUpperCase());
+      }
+      if (dName) dName.textContent = user.displayName || 'Google User';
+      if (dEmail) dEmail.textContent = user.email || '';
+      if (signInBtn) signInBtn.classList.add('hidden');
+      if (syncNowBtn) syncNowBtn.classList.remove('hidden');
+      if (signOutBtn) signOutBtn.classList.remove('hidden');
+    } else {
+      if (topLabel) topLabel.textContent = 'Sign in';
+      if (topAvatar) topAvatar.classList.add('hidden');
+      if (topIcon) topIcon.classList.remove('hidden');
+      if (dAvatar) dAvatar.textContent = 'G';
+      if (dName) dName.textContent = 'Not signed in';
+      if (dEmail) dEmail.textContent = 'Sign in to sync phone & PC';
+      if (signInBtn) signInBtn.classList.remove('hidden');
+      if (syncNowBtn) syncNowBtn.classList.add('hidden');
+      if (signOutBtn) signOutBtn.classList.add('hidden');
+    }
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function renderSyncStatus(status) {
+    const pill = document.getElementById('syncStatusPill');
+    if (!pill) return;
+    if (status === 'synced') {
+      pill.textContent = 'synced';
+      pill.style.color = 'var(--success)';
+    } else if (status === 'syncing') {
+      pill.textContent = 'syncing...';
+      pill.style.color = 'var(--text-primary)';
+    } else if (status === 'offline') {
+      pill.textContent = 'offline';
+      pill.style.color = 'var(--warning)';
+    } else {
+      pill.textContent = 'local';
+      pill.style.color = 'var(--text-muted)';
+    }
+  }
+
+  function renderPublicStats(m) {
+    const vEl = document.getElementById('statVisitsCount');
+    const uEl = document.getElementById('statUsersCount');
+    const tEl = document.getElementById('statThumbsCount');
+    if (vEl) vEl.textContent = Number(m.visits || 1).toLocaleString();
+    if (uEl) uEl.textContent = Number(m.signedInUsers || 0).toLocaleString();
+    if (tEl) tEl.textContent = Number(m.thumbsUp || 0).toLocaleString();
+    if (m.userThumbedUp) {
+      popupThumbedUp = true;
+      const ft = document.getElementById('footerThumbsBtn');
+      if (ft) ft.style.color = 'var(--success)';
+    }
+  }
+
+  function openFeedbackPopup() {
+    const pop = document.getElementById('feedbackPopup');
+    if (!pop) return;
+    pop.classList.remove('hidden');
+    updatePopupThumbUI();
+    if (window.lucide) lucide.createIcons();
+  }
+
+  function closeFeedbackPopup(markDismissed = false) {
+    const pop = document.getElementById('feedbackPopup');
+    if (pop) pop.classList.add('hidden');
+    if (markDismissed) {
+      try { localStorage.setItem('lexicon_feedback_dismissed', '1'); } catch (_) {}
+    }
+  }
+
+  function updatePopupThumbUI() {
+    const btn = document.getElementById('popupThumbBtn');
+    const lbl = document.getElementById('popupThumbLabel');
+    if (!btn || !lbl) return;
+    if (popupThumbedUp) {
+      btn.style.background = 'var(--success-soft)';
+      btn.style.borderColor = 'var(--success)';
+      btn.style.color = 'var(--success)';
+      lbl.textContent = 'Thumbs Up Added ✓';
+    } else {
+      btn.style.background = 'transparent';
+      btn.style.borderColor = 'var(--border)';
+      btn.style.color = 'var(--text-secondary)';
+      lbl.textContent = 'Give a Thumbs Up';
+    }
+  }
+
+  function bindCloudAndFeedbackEvents() {
+    const handleGoogleSignIn = async () => {
+      if (!window.LexiconCloud) return;
+      const res = await window.LexiconCloud.signInWithGoogle();
+      if (res.ok) showToast('Signed in with Google · Syncing library...', 'success');
+      else if (res.error) showToast(res.error, 'error');
+    };
+
+    const topAuthBtn = document.getElementById('googleAuthTopBtn');
+    if (topAuthBtn) {
+      topAuthBtn.addEventListener('click', () => {
+        if (window.LexiconCloud && window.LexiconCloud.getUser()) openProfileDrawer();
+        else handleGoogleSignIn();
+      });
+    }
+    const drawerSignIn = document.getElementById('drawerGoogleSignInBtn');
+    if (drawerSignIn) drawerSignIn.addEventListener('click', handleGoogleSignIn);
+
+    const drawerSync = document.getElementById('drawerSyncNowBtn');
+    if (drawerSync) drawerSync.addEventListener('click', () => {
+      if (window.LexiconCloud) {
+        window.LexiconCloud.scheduleSync(state, true);
+        showToast('Cloud sync triggered.', 'success');
+      }
+    });
+
+    const drawerSignOut = document.getElementById('drawerSignOutBtn');
+    if (drawerSignOut) drawerSignOut.addEventListener('click', async () => {
+      if (window.LexiconCloud) {
+        await window.LexiconCloud.signOut();
+        showToast('Signed out · Local words kept safely.');
+      }
+    });
+
+    const footerThumb = document.getElementById('footerThumbsBtn');
+    if (footerThumb) footerThumb.addEventListener('click', async () => {
+      if (!window.LexiconCloud) return;
+      const res = await window.LexiconCloud.toggleThumbsUp();
+      popupThumbedUp = true;
+      updatePopupThumbUI();
+      showToast(res.alreadyDone ? 'Thanks — you already gave a thumbs up!' : 'Thanks for the thumbs up!', 'success');
+    });
+
+    const openFb = document.getElementById('openFeedbackBtn');
+    if (openFb) openFb.addEventListener('click', openFeedbackPopup);
+    const closeFb = document.getElementById('closeFeedbackBtn');
+    if (closeFb) closeFb.addEventListener('click', () => closeFeedbackPopup(true));
+    const dismissFb = document.getElementById('dismissFeedbackBtn');
+    if (dismissFb) dismissFb.addEventListener('click', () => closeFeedbackPopup(true));
+
+    const popThumb = document.getElementById('popupThumbBtn');
+    if (popThumb) popThumb.addEventListener('click', () => {
+      popupThumbedUp = !popupThumbedUp;
+      updatePopupThumbUI();
+    });
+
+    const submitFb = document.getElementById('submitFeedbackBtn');
+    if (submitFb) submitFb.addEventListener('click', async () => {
+      const comment = document.getElementById('feedbackCommentInput').value.trim();
+      if (!popupThumbedUp && !comment) {
+        showToast('Tap Thumbs Up or write a quick note first.');
+        return;
+      }
+      if (window.LexiconCloud) await window.LexiconCloud.submitFeedback(comment, popupThumbedUp);
+      document.getElementById('feedbackCommentInput').value = '';
+      closeFeedbackPopup(true);
+      showToast('Thank you for your feedback!', 'success');
+    });
+
+    // Show gentle feedback popup once after 45s of active use if not already sent/dismissed
+    setTimeout(() => {
+      try {
+        const dismissed = localStorage.getItem('lexicon_feedback_dismissed');
+        const m = window.LexiconCloud ? window.LexiconCloud.getLocalMetrics() : {};
+        if (!dismissed && !m.feedbackSent) openFeedbackPopup();
+      } catch (_) {}
+    }, 45000);
+  }
+
+    // Boot
   bindEvents();
+  bindCloudAndFeedbackEvents();
+  if (window.LexiconCloud) {
+    window.LexiconCloud.init({
+      onAuthChange: renderAuthUI,
+      onSyncStatus: renderSyncStatus,
+      onStatsUpdate: renderPublicStats,
+      onRemoteState: mergeRemoteState,
+      getLocalState: () => state
+    });
+  }
   applyTheme();
   applyInspectorVisibility();
   updateNetworkPill();

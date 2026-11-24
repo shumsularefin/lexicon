@@ -1,9 +1,10 @@
-const CACHE_NAME = 'lexicon-offline-v1';
+const CACHE_NAME = 'lexicon-offline-v2';
 const ASSETS = [
   '/',
   '/index.html',
   '/css/styles.css',
   '/js/dictionary.js',
+  '/js/cloud.js',
   '/js/app.js',
   '/manifest.json'
 ];
@@ -26,6 +27,7 @@ self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/__/')) return;
 
   event.respondWith(
     caches.match(event.request).then(cached => {
