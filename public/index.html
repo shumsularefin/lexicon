@@ -38,6 +38,10 @@
         <span id="networkDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
         <span id="networkLabel" class="hidden md:inline">Online</span>
       </button>
+      <div id="topbarVoiceToggle" class="hidden sm:inline-flex items-center p-0.5 rounded-lg text-[11px] font-mono-code" style="background: var(--bg-elevated); border: 1px solid var(--border);" title="Pronunciation voice (Female / Male) · Tap Listen twice for slow syllables">
+        <button data-voice-gender="female" class="vg-btn px-1.5 py-0.5 rounded-md transition-colors">F</button>
+        <button data-voice-gender="male" class="vg-btn px-1.5 py-0.5 rounded-md transition-colors">M</button>
+      </div>
       <button id="themeToggleBtn" class="h-7 w-7 rounded-lg flex items-center justify-center btn-ghost" title="Toggle Dark / Light contrast theme" aria-label="Toggle theme">
         <i id="themeIcon" data-lucide="sun" class="w-3.5 h-3.5"></i>
       </button>
@@ -387,26 +391,36 @@
           </div>
 
           <div class="surface rounded-xl p-5 space-y-4">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between gap-3">
               <div>
-                <h2 class="text-sm font-medium">Offline Pronunciation Voice</h2>
-                <p class="text-xs mt-0.5" style="color: var(--text-muted);">On-device speech synthesis works completely offline.</p>
+                <h2 class="text-sm font-medium">Pronunciation &amp; Google Rhythm</h2>
+                <p class="text-xs mt-0.5" style="color: var(--text-muted);">Tap Listen 1× Normal → 2× Slow syllable pace → 3× Normal. Standard clear Male &amp; Female voices.</p>
               </div>
-              <button id="refreshVoicesBtn" class="btn-ghost h-8 px-2.5 rounded-lg text-xs flex items-center gap-1.5">
+              <button id="refreshVoicesBtn" class="btn-ghost h-8 px-2.5 rounded-lg text-xs flex items-center gap-1.5 shrink-0">
                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i> Refresh
               </button>
             </div>
+            <div class="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <div class="inline-flex items-center p-1 rounded-lg" style="background: var(--bg-elevated); border: 1px solid var(--border);">
+                <button type="button" data-voice-gender="female" class="vg-settings-btn px-3 py-1 rounded-md text-xs font-medium transition-colors">Female · Standard</button>
+                <button type="button" data-voice-gender="male" class="vg-settings-btn px-3 py-1 rounded-md text-xs font-medium transition-colors">Male · Standard</button>
+              </div>
+              <label class="inline-flex items-center gap-2 text-xs cursor-pointer">
+                <input id="googleRhythmToggle" type="checkbox" class="accent-white w-4 h-4" checked />
+                <span>Google rhythm (Normal → Slow → Normal)</span>
+              </label>
+            </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div class="space-y-1">
-                <label for="voiceSelect" class="text-xs" style="color: var(--text-secondary);">Voice</label>
+                <label for="voiceSelect" class="text-xs" style="color: var(--text-secondary);">System Voice Override</label>
                 <select id="voiceSelect" class="input-field w-full h-9 px-3 rounded-lg text-xs"></select>
               </div>
               <div class="space-y-1">
-                <label for="speedSelect" class="text-xs" style="color: var(--text-secondary);">Playback speed</label>
+                <label for="speedSelect" class="text-xs" style="color: var(--text-secondary);">Base Playback Speed</label>
                 <select id="speedSelect" class="input-field w-full h-9 px-3 rounded-lg text-xs">
-                  <option value="0.75">Slow (0.75×)</option>
-                  <option value="1">Normal (1.0×)</option>
-                  <option value="1.25">Fast (1.25×)</option>
+                  <option value="0.85">Clear Relaxed (0.85×)</option>
+                  <option value="1">Standard Normal (1.0×)</option>
+                  <option value="1.15">Brisk (1.15×)</option>
                 </select>
               </div>
             </div>

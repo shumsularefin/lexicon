@@ -162,6 +162,8 @@
       settings: {
         theme: 'dark',
         dailyGoal: 5,
+        voiceGender: 'female',
+        googleRhythm: true,
         voiceURI: 'auto',
         speechRate: 1,
         geminiApiKey: '',
@@ -282,38 +284,117 @@
     }, 2400);
   }
 
-  function speakWord(text, audioUrl) {
-    if (!text) return;
-    const isOnline = navigator.onLine && !state.settings.simulateOffline;
-    if (isOnline && audioUrl && audioUrl.startsWith('https://')) {
-      try {
-        const audio = new Audio(audioUrl);
-        audio.playbackRate = Number(state.settings.speechRate) || 1;
-        audio.play().catch(() => speakViaWebSpeech(text));
-        return;
-      } catch (_) {}
+  // Google-style 3-tap rhythm tracker: 1st = Normal -> 2nd = Slow (syllables) -> 3rd = Normal
+  let lastSpokenWord = '';
+  let speakTapStep = 0;
+
+  const NOVELTY_VOICES = /zarvox|trinoids|bells|bubbles|whisper|fred|ralph|albert|bad news|good news|cellos|boing|hysterical|pipe organ|bahh|deranged|junior|kathy|princess|espeak/i;
+  const FEMALE_PREF = [
+    /google us english/i,
+    /microsoft aria online/i,
+    /microsoft jenny online/i,
+    /microsoft ava online/i,
+    /samantha/i,
+    /google uk english female/i,
+    /microsoft zira/i,
+    /ava|allison|karen|victoria|tessa|moira|serena|kate|female/i
+  ];
+  const MALE_PREF = [
+    /google uk english male/i,
+    /microsoft andrew online/i,
+    /microsoft guy online/i,
+    /microsoft brian online/i,
+    /daniel/i,
+    /alex/i,
+    /microsoft david/i,
+    /microsoft mark/i,
+    /arthur|aaron|oliver|tom|frederick|male/i
+  ];
+
+  function pickBestStandardVoice(gender) {
+    if (!('speechSynthesis' in window)) return null;
+    const all = window.speechSynthesis.getVoices() || [];
+    const english = all.filter(v => /^en[-_]/i.test(v.lang) && !NOVELTY_VOICES.test(v.name));
+    const pool = english.length ? english : all.filter(v => /^en/i.test(v.lang));
+    if (!pool.length) return all[0] || null;
+
+    const prefs = gender === 'male' ? MALE_PREF : FEMALE_PREF;
+    for (const pattern of prefs) {
+      const match = pool.find(v => pattern.test(v.name));
+      if (match) return match;
     }
-    speakViaWebSpeech(text);
+    const enUS = pool.find(v => /en[-_]US/i.test(v.lang));
+    return enUS || pool[0];
   }
 
-  function speakViaWebSpeech(text) {
+  function updateVoiceGenderUI() {
+    const g = state.settings.voiceGender || 'female';
+    document.querySelectorAll('.vg-btn, .vg-settings-btn').forEach(btn => {
+      const act = btn.dataset.voiceGender === g;
+      btn.style.background = act ? 'var(--btn-bg)' : 'transparent';
+      btn.style.color = act ? 'var(--btn-text)' : 'var(--text-muted)';
+    });
+  }
+
+  function speakWord(text, audioUrl) {
+    if (!text) return;
+    const key = text.trim().toLowerCase();
+    const useRhythm = state.settings.googleRhythm !== false;
+
+    if (useRhythm) {
+      if (lastSpokenWord === key) {
+        speakTapStep = (speakTapStep + 1) % 3; // 0: Normal, 1: Slow, 2: Normal
+      } else {
+        lastSpokenWord = key;
+        speakTapStep = 0;
+      }
+    } else {
+      lastSpokenWord = key;
+      speakTapStep = 0;
+    }
+
+    const isSlowStep = useRhythm && speakTapStep === 1;
+    const baseRate = Number(state.settings.speechRate) || 1;
+    const rate = isSlowStep ? 0.65 : baseRate;
+    const gender = state.settings.voiceGender || 'female';
+
+    // Always respect user's chosen Female/Male voice & Google rhythm via crystal-clear Web Speech
+    speakViaWebSpeech(text, rate, gender, isSlowStep);
+  }
+
+  function speakViaWebSpeech(text, rateOverride = null, genderOverride = null, isSlowStep = false) {
     if (!('speechSynthesis' in window)) {
       showToast('Speech synthesis unavailable.', 'error');
       return;
     }
     try {
       window.speechSynthesis.cancel();
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+
       const utter = new SpeechSynthesisUtterance(text);
-      utter.rate = Number(state.settings.speechRate) || 1;
+      const gender = genderOverride || state.settings.voiceGender || 'female';
+      utter.lang = 'en-US';
+      utter.rate = rateOverride !== null ? rateOverride : (Number(state.settings.speechRate) || 1);
+      utter.pitch = 1.0;
+      utter.volume = 1.0;
+
       const voices = window.speechSynthesis.getVoices();
       if (state.settings.voiceURI && state.settings.voiceURI !== 'auto') {
         const chosen = voices.find(v => v.voiceURI === state.settings.voiceURI);
         if (chosen) utter.voice = chosen;
       } else {
-        const localEn = voices.find(v => v.localService && /^en/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang));
-        if (localEn) utter.voice = localEn;
+        const standard = pickBestStandardVoice(gender);
+        if (standard) utter.voice = standard;
       }
-      window.speechSynthesis.speak(utter);
+
+      // Slight delay after cancel() prevents Chrome from clipping the first syllable
+      setTimeout(() => {
+        window.speechSynthesis.speak(utter);
+      }, 35);
+
+      const paceLabel = isSlowStep ? 'Slow · syllables (0.65×)' : `Normal (${utter.rate.toFixed(2).replace(/\.00$/, '')}×)`;
+      const genderLabel = gender === 'male' ? 'Male' : 'Female';
+      showToast(`${paceLabel} · ${genderLabel}`);
     } catch (_) {
       showToast('Unable to play pronunciation audio.', 'error');
     }
@@ -323,14 +404,16 @@
     const sel = document.getElementById('voiceSelect');
     if (!sel) return;
     const voices = ('speechSynthesis' in window) ? window.speechSynthesis.getVoices() : [];
-    sel.innerHTML = `<option value="auto">Automatic · prefer an on-device English voice</option>`;
-    voices.forEach(v => {
+    const clean = voices.filter(v => !NOVELTY_VOICES.test(v.name));
+    sel.innerHTML = `<option value="auto">Automatic · Best clear ${state.settings.voiceGender === 'male' ? 'Male' : 'Female'} English voice</option>`;
+    clean.filter(v => /^en/i.test(v.lang)).forEach(v => {
       const opt = document.createElement('option');
       opt.value = v.voiceURI;
       opt.textContent = `${v.name} (${v.lang})${v.localService ? ' · Offline' : ''}`;
       sel.appendChild(opt);
     });
     sel.value = state.settings.voiceURI || 'auto';
+    updateVoiceGenderUI();
   }
 
   function recordActivity(amount = 1) {
@@ -1364,10 +1447,12 @@
 
   function renderSettings() {
     document.getElementById('simulateOfflineToggle').checked = !!state.settings.simulateOffline;
+    document.getElementById('googleRhythmToggle').checked = state.settings.googleRhythm !== false;
     document.getElementById('geminiKeyInput').value = state.settings.geminiApiKey || '';
     document.getElementById('dailyGoalInput').value = state.settings.dailyGoal || 5;
     document.getElementById('speedSelect').value = String(state.settings.speechRate || 1);
     populateVoices();
+    updateVoiceGenderUI();
   }
 
   // =========================================================================
@@ -1622,18 +1707,52 @@
           state = { ...defaultState(), ...data }; saveState(); applyTheme(); updateNetworkPill(); renderActiveView();
           showToast('Profile restored.', 'success'); return;
         }
-        const incoming = Array.isArray(data.words) ? data.words : (Array.isArray(data) ? data : null);
-        if (!incoming) { showToast('Invalid JSON backup.', 'error'); return; }
+        const rawIncoming = Array.isArray(data.words) ? data.words : (Array.isArray(data) ? data : null);
+        if (!rawIncoming) { showToast('Invalid JSON backup.', 'error'); return; }
+        const normalized = rawIncoming.map(w => {
+          const wordText = (w.word || w.base || '').trim();
+          if (!wordText) return null;
+          const capWord = wordText.charAt(0).toUpperCase() + wordText.slice(1);
+          const meanings = (w.meanings || []).map(m => ({
+            pos: (m.pos || 'noun').toLowerCase(),
+            def: m.def || m.definition || '',
+            example: m.example || (Array.isArray(m.examples) ? (m.examples[0] || '') : '')
+          }));
+          return {
+            id: w.id || uid(),
+            word: capWord,
+            syllables: w.syllables || syllabifyWord(capWord),
+            ipa: w.ipa || estimateIpa(capWord),
+            categories: Array.isArray(w.categories) && w.categories.length ? w.categories : ['Everyday English'],
+            synonyms: Array.isArray(w.synonyms) ? w.synonyms : [],
+            tip: w.tip || '',
+            meanings,
+            addedDate: w.addedDate || w.addedOn || todayISO(),
+            mastery: typeof w.mastery === 'number' ? w.mastery : 0,
+            reviews: typeof w.reviews === 'number' ? w.reviews : 0,
+            lastReviewed: w.lastReviewed || null,
+            audioUrl: w.audioUrl || ''
+          };
+        }).filter(Boolean);
+
         const method = document.getElementById('importMethodSelect')?.value || 'merge';
         if (method === 'replace') {
-          state.words = incoming;
+          state.words = normalized;
+          state.activityLog = {};
+          normalized.forEach(w => { if (w.addedDate) state.activityLog[w.addedDate] = (state.activityLog[w.addedDate] || 0) + 1; });
           if (Array.isArray(data.categories)) state.categories = data.categories;
         } else {
           const set = new Set(state.words.map(w => w.word.toLowerCase()));
-          incoming.forEach(w => { if (w && w.word && !set.has(w.word.toLowerCase())) { state.words.push({ ...w, id: w.id || uid() }); set.add(w.word.toLowerCase()); } });
+          normalized.forEach(w => {
+            if (!set.has(w.word.toLowerCase())) {
+              state.words.push(w);
+              set.add(w.word.toLowerCase());
+              if (w.addedDate) state.activityLog[w.addedDate] = (state.activityLog[w.addedDate] || 0) + 1;
+            }
+          });
           if (Array.isArray(data.categories)) data.categories.forEach(c => { if (!state.categories.includes(c)) state.categories.push(c); });
         }
-        saveState(); renderActiveView(); showToast(`Imported ${incoming.length} words.`, 'success');
+        saveState(); renderActiveView(); showToast(`Imported ${normalized.length} words.`, 'success');
       } catch (_) { showToast('Could not parse JSON file.', 'error'); }
     };
     reader.readAsText(file);
@@ -1817,8 +1936,22 @@
     });
     document.getElementById('voiceSelect').addEventListener('change', e => { state.settings.voiceURI = e.target.value; saveState(); });
     document.getElementById('speedSelect').addEventListener('change', e => { state.settings.speechRate = Number(e.target.value); saveState(); });
+    document.querySelectorAll('.vg-btn, .vg-settings-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        state.settings.voiceGender = btn.dataset.voiceGender;
+        state.settings.voiceURI = 'auto';
+        saveState();
+        populateVoices();
+        updateVoiceGenderUI();
+        showToast(`Voice set to standard ${btn.dataset.voiceGender === 'male' ? 'Male' : 'Female'}.`);
+      });
+    });
+    document.getElementById('googleRhythmToggle').addEventListener('change', e => {
+      state.settings.googleRhythm = e.target.checked;
+      saveState();
+    });
     document.getElementById('refreshVoicesBtn').addEventListener('click', () => { populateVoices(); showToast('Voices refreshed.'); });
-    document.getElementById('previewVoiceBtn').addEventListener('click', () => speakViaWebSpeech(document.getElementById('previewWordInput').value.trim() || 'ephemeral'));
+    document.getElementById('previewVoiceBtn').addEventListener('click', () => speakWord(document.getElementById('previewWordInput').value.trim() || 'ephemeral'));
     document.getElementById('stopVoiceBtn').addEventListener('click', () => { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); });
 
     document.getElementById('exportJsonBtn').addEventListener('click', () => { downloadJson({ words: state.words, categories: state.categories, exportedAt: new Date().toISOString() }, `lexicon-backup-${todayISO()}.json`); showToast('Backup downloaded.', 'success'); });
