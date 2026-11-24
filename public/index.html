@@ -4,7 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#0A0A0B" />
-  <title>Lexicon — IDE Vocabulary Workspace</title>
+  <title>Lexicon — Focused Vocabulary Workspace</title>
+  <meta name="description" content="Zero-friction, offline-first vocabulary studio with Gemini auto-enrichment, Google-rhythm pronunciation, spaced repetition, and cross-device cloud sync." />
+  <meta property="og:title" content="Lexicon — Focused Vocabulary Workspace" />
+  <meta property="og:description" content="Capture and master new vocabulary effortlessly—offline-first, cross-device synced, and distraction-free." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://lexicon-prc.web.app/" />
+  <meta name="twitter:card" content="summary" />
+  <link rel="icon" type="image/svg+xml" href="./icon.svg" />
+  <link rel="apple-touch-icon" href="./icon.svg" />
   <link rel="manifest" href="./manifest.json" />
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -512,6 +520,8 @@
               </button>
               <span>·</span>
               <button id="openFeedbackBtn" type="button" class="hover:text-[var(--text-primary)] underline decoration-dotted transition-colors">Feedback</button>
+              <span>·</span>
+              <button id="openShortcutsBtn" type="button" class="hover:text-[var(--text-primary)] transition-colors" title="Keyboard shortcuts (?)">?</button>
             </div>
           </div>
         </footer>
@@ -789,6 +799,17 @@
           </button>
         </div>
 
+        <div class="elevated rounded-xl p-3 flex items-center justify-between gap-2">
+          <div class="min-w-0">
+            <div id="mobileDrawerUserLabel" class="text-xs font-medium truncate">Local notebook</div>
+            <div id="mobileDrawerSyncLabel" class="text-[11px] font-mono-code" style="color: var(--text-muted);">Sign in to sync phone &amp; PC</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="mobileDrawerSignInBtn" class="btn-primary h-7 px-3 rounded-lg text-[11px] font-medium">Sign in</button>
+            <button id="mobileDrawerSignOutBtn" class="hidden btn-ghost h-7 px-2.5 rounded-lg text-[11px]">Sign out</button>
+          </div>
+        </div>
+
         <div class="grid grid-cols-2 gap-2.5">
           <div class="elevated rounded-xl p-3">
             <div class="text-[10px] font-mono-code uppercase" style="color: var(--text-muted);">Reviewed</div>
@@ -848,6 +869,27 @@
       <div class="flex justify-end gap-2">
         <button id="renameCancelBtn" class="btn-ghost h-8 px-3 rounded-lg text-xs">Cancel</button>
         <button id="renameSaveBtn" class="btn-primary h-8 px-4 rounded-lg text-xs font-medium">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- KEYBOARD SHORTCUTS MODAL -->
+  <div id="shortcutsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div class="dialog-panel w-full max-w-sm p-5 space-y-4 animate-in">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-medium">Keyboard Shortcuts</h3>
+        <button id="closeShortcutsBtn" class="p-1 rounded-lg hover:bg-[var(--bg-hover)]" style="color: var(--text-muted);" aria-label="Close">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div class="space-y-2 text-xs">
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Quick capture / Focus input</span><span class="kbd">⌘K</span></div>
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Instant capture</span><span class="kbd">/</span></div>
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Reveal flashcard</span><span class="kbd">Space</span></div>
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Listen (Normal → Slow → Normal)</span><span class="kbd">L</span></div>
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Rate card (Revisit / Got it)</span><span class="flex gap-1"><span class="kbd">1</span><span class="kbd">2</span></span></div>
+        <div class="flex items-center justify-between py-1 border-b" style="border-color: var(--border);"><span style="color: var(--text-secondary);">Answer quiz option</span><span class="flex gap-1"><span class="kbd">1-4</span><span class="kbd">A-D</span></span></div>
+        <div class="flex items-center justify-between py-1"><span style="color: var(--text-secondary);">Show shortcuts</span><span class="kbd">?</span></div>
       </div>
     </div>
   </div>

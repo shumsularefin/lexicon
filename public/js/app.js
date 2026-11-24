@@ -107,6 +107,45 @@
     return d.toISOString().slice(0, 10);
   }
   function todayISO() { return new Date().toISOString().slice(0, 10); }
+  function futureDateISO(daysAhead) {
+    const d = new Date();
+    d.setDate(d.getDate() + daysAhead);
+    return d.toISOString().slice(0, 10);
+  }
+  function isWordDue(w) {
+    if ((w.mastery || 0) >= 3 && w.nextReviewDate && w.nextReviewDate > todayISO()) return false;
+    if (w.nextReviewDate && w.nextReviewDate > todayISO()) return false;
+    return true;
+  }
+  function scheduleNextReview(word, gotIt) {
+    const intervals = [1, 3, 7, 21];
+    if (gotIt) {
+      word.mastery = Math.min(3, (word.mastery || 0) + 1);
+      word.nextReviewDate = futureDateISO(intervals[word.mastery] || 7);
+    } else {
+      word.mastery = Math.max(1, (word.mastery || 1) - 1);
+      word.nextReviewDate = todayISO();
+    }
+    word.reviews = (word.reviews || 0) + 1;
+    word.lastReviewed = todayISO();
+  }
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => showToast('Copied word card.', 'success')).catch(() => fallbackCopy(text));
+    } else {
+      fallbackCopy(text);
+    }
+  }
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); showToast('Copied word card.', 'success'); } catch (_) {}
+    ta.remove();
+  }
   function uid() { return 'w_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4); }
 
   function buildStarterWords() {
@@ -600,7 +639,7 @@
     const pct = Math.min(100, Math.round((todayCount / goal) * 100));
     const streak = computeStreak();
     const masteredCount = state.words.filter(w => (w.mastery || 0) >= 3).length;
-    const dueCount = state.words.length - masteredCount;
+    const dueCount = state.words.filter(isWordDue).length;
 
     document.getElementById('navVocabCount').textContent = state.words.length;
     document.getElementById('navDueCount').textContent = dueCount;
@@ -1044,6 +1083,7 @@
             <span class="text-[11px] font-mono-code" style="color:var(--text-muted);">${escapeHtml((w.categories && w.categories[0]) || 'General')}</span>
             <div class="flex items-center gap-1">
               <button data-action="listen" data-id="${w.id}" class="word-act btn-ghost h-7 px-2.5 rounded-md text-[11px] flex items-center gap-1"><i data-lucide="volume-2" class="w-3 h-3"></i> Listen</button>
+              <button data-action="copy" data-id="${w.id}" class="word-act btn-ghost h-7 px-2 rounded-md text-[11px]" title="Copy formatted word">Copy</button>
               <button data-action="edit" data-id="${w.id}" class="word-act btn-ghost h-7 px-2.5 rounded-md text-[11px]">Edit</button>
               <button data-action="delete" data-id="${w.id}" class="word-act h-7 px-2.5 rounded-md text-[11px] hover:bg-[var(--danger-soft)]" style="color:var(--danger);">Delete</button>
             </div>
@@ -1057,6 +1097,11 @@
         const word = state.words.find(x => x.id === btn.dataset.id);
         if (!word) return;
         if (btn.dataset.action === 'listen') speakWord(word.word, word.audioUrl);
+        if (btn.dataset.action === 'copy') {
+          const m0 = (word.meanings && word.meanings[0]) || { pos: '', def: '', example: '' };
+          const formatted = `${word.word} (${word.syllables || ''}) ${word.ipa || ''}\n[${m0.pos}] ${m0.def}${m0.example ? '\n"' + m0.example + '"' : ''}`;
+          copyTextToClipboard(formatted);
+        }
         if (btn.dataset.action === 'edit') openQuickAddModal(word);
         if (btn.dataset.action === 'delete') {
           openConfirmModal('Delete Word', `Remove "${word.word}" from your vocabulary?`, () => {
@@ -1070,7 +1115,8 @@
 
   function buildReviewDeck() {
     const filtered = getFilteredWords('reviewSearchInput', 'reviewCategoryFilter', 'reviewPosFilter');
-    reviewSession = { ids: filtered.map(w => w.id), index: 0, revealed: false, gotIt: 0, revisit: 0 };
+    const ordered = [...filtered].sort((a, b) => (isWordDue(b) ? 1 : 0) - (isWordDue(a) ? 1 : 0));
+    reviewSession = { ids: ordered.map(w => w.id), index: 0, revealed: false, gotIt: 0, revisit: 0 };
     state.savedReview = reviewSession;
     saveState();
   }
@@ -1165,10 +1211,8 @@
   }
 
   function finishReviewCard(word, gotIt) {
-    if (gotIt) { word.mastery = Math.min(3, (word.mastery || 0) + 1); reviewSession.gotIt++; }
-    else { word.mastery = Math.max(1, (word.mastery || 1) - 1); reviewSession.revisit++; }
-    word.reviews = (word.reviews || 0) + 1;
-    word.lastReviewed = todayISO();
+    if (gotIt) reviewSession.gotIt++; else reviewSession.revisit++;
+    scheduleNextReview(word, gotIt);
     state.stats.totalReviewed++;
     recordActivity(1);
 
@@ -2052,6 +2096,29 @@
         else if (e.key === '1' && reviewSession.revealed) finishReviewCard(w, false);
         else if (e.key === '2' && reviewSession.revealed) finishReviewCard(w, true);
       }
+      if (activeTab === 'quiz' && quizSession && quizSession.index < quizSession.questions.length) {
+        if (!quizSession.answered) {
+          const map = { '1': 0, '2': 1, '3': 2, '4': 3, 'a': 0, 'b': 1, 'c': 2, 'd': 3 };
+          const idx = map[e.key.toLowerCase()];
+          if (idx !== undefined) {
+            const btns = document.querySelectorAll('.quiz-opt-btn');
+            if (btns[idx]) btns[idx].click();
+          }
+        } else if (e.key === 'Enter') {
+          e.preventDefault();
+          advanceQuizQuestion();
+        }
+      }
+      if (e.key === '?') {
+        e.preventDefault();
+        const sm = document.getElementById('shortcutsModal');
+        if (sm) {
+          const isHidden = sm.classList.contains('hidden');
+          sm.classList.toggle('hidden', !isHidden);
+          sm.classList.toggle('flex', isHidden);
+          if (window.lucide) lucide.createIcons();
+        }
+      }
     });
 
     if ('speechSynthesis' in window) window.speechSynthesis.onvoiceschanged = populateVoices;
@@ -2107,6 +2174,21 @@
       if (signInBtn) signInBtn.classList.remove('hidden');
       if (syncNowBtn) syncNowBtn.classList.add('hidden');
       if (signOutBtn) signOutBtn.classList.add('hidden');
+    }
+    const mUser = document.getElementById('mobileDrawerUserLabel');
+    const mSync = document.getElementById('mobileDrawerSyncLabel');
+    const mIn = document.getElementById('mobileDrawerSignInBtn');
+    const mOut = document.getElementById('mobileDrawerSignOutBtn');
+    if (user) {
+      if (mUser) mUser.textContent = user.displayName || user.email || 'Signed in';
+      if (mSync) mSync.textContent = user.email || 'Cloud sync active';
+      if (mIn) mIn.classList.add('hidden');
+      if (mOut) mOut.classList.remove('hidden');
+    } else {
+      if (mUser) mUser.textContent = 'Local notebook';
+      if (mSync) mSync.textContent = 'Sign in to sync phone & PC';
+      if (mIn) mIn.classList.remove('hidden');
+      if (mOut) mOut.classList.add('hidden');
     }
     if (window.lucide) lucide.createIcons();
   }
@@ -2202,7 +2284,27 @@
       }
     });
 
-    const drawerSignOut = document.getElementById('drawerSignOutBtn');
+    const mSignIn = document.getElementById('mobileDrawerSignInBtn');
+    if (mSignIn) mSignIn.addEventListener('click', handleGoogleSignIn);
+    const mSignOut = document.getElementById('mobileDrawerSignOutBtn');
+    if (mSignOut) mSignOut.addEventListener('click', async () => {
+      if (window.LexiconCloud) { await window.LexiconCloud.signOut(); showToast('Signed out · Local words kept safely.'); }
+    });
+    const openSc = document.getElementById('openShortcutsBtn');
+    if (openSc) openSc.addEventListener('click', () => {
+      const sm = document.getElementById('shortcutsModal');
+      if (sm) { sm.classList.remove('hidden'); sm.classList.add('flex'); if (window.lucide) lucide.createIcons(); }
+    });
+    const closeSc = document.getElementById('closeShortcutsBtn');
+    if (closeSc) closeSc.addEventListener('click', () => {
+      const sm = document.getElementById('shortcutsModal');
+      if (sm) { sm.classList.add('hidden'); sm.classList.remove('flex'); }
+    });
+    const scModal = document.getElementById('shortcutsModal');
+    if (scModal) scModal.addEventListener('click', e => {
+      if (e.target.id === 'shortcutsModal') { scModal.classList.add('hidden'); scModal.classList.remove('flex'); }
+    });
+        const drawerSignOut = document.getElementById('drawerSignOutBtn');
     if (drawerSignOut) drawerSignOut.addEventListener('click', async () => {
       if (window.LexiconCloud) {
         await window.LexiconCloud.signOut();

@@ -1,7 +1,8 @@
-const CACHE_NAME = 'lexicon-offline-v3';
+const CACHE_NAME = 'lexicon-offline-v4';
 const ASSETS = [
   '/',
   '/index.html',
+  '/icon.svg',
   '/css/styles.css',
   '/js/dictionary.js',
   '/js/cloud.js',
