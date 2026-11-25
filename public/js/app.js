@@ -95,7 +95,88 @@
       }
     } catch (_) {}
 
-    return offlineLookup(word);
+    // Online Fallback 2: Wiktionary REST API (covers archaic, inflected, and phrasal words like "thou")
+    try {
+      const c2 = new AbortController();
+      const t2 = setTimeout(() => c2.abort(), 5000);
+      const wRes = await fetch(`https://en.wiktionary.org/api/rest_v1/page/definition/${encodeURIComponent(lower)}`, { signal: c2.signal });
+      clearTimeout(t2);
+      if (wRes.ok) {
+        const wData = await wRes.json();
+        const enList = Array.isArray(wData.en) ? wData.en : [];
+        const strip = s => String(s || '').replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+        const meanings = [];
+        for (const sec of enList) {
+          const pos = (sec.partOfSpeech || 'noun').toLowerCase();
+          for (const d of (sec.definitions || []).slice(0, 2)) {
+            const defText = strip(d.definition);
+            const exText = Array.isArray(d.examples) && d.examples.length ? strip(d.examples[0]) : '';
+            if (defText && meanings.length < 3) meanings.push({ pos, def: defText, example: exText });
+          }
+        }
+        if (meanings.length) {
+          return {
+            word,
+            syllables: syllabifyWord(word),
+            ipa: estimateIpa(word),
+            category: 'Everyday English',
+            synonyms: [],
+            tip: `${syllabifyWord(word).split('·').length} syllable(s). Tap Listen to lock in pronunciation.`,
+            meanings,
+            source: 'Wiktionary · Live',
+            audioUrl: ''
+          };
+        }
+      }
+    } catch (_) {}
+
+    // Online Fallback 3: Datamuse / WordNet API
+    try {
+      const c3 = new AbortController();
+      const t3 = setTimeout(() => c3.abort(), 5000);
+      const dRes = await fetch(`https://api.datamuse.com/words?sp=${encodeURIComponent(lower)}&md=dp&max=1`, { signal: c3.signal });
+      clearTimeout(t3);
+      if (dRes.ok) {
+        const dList = await dRes.json();
+        const item = Array.isArray(dList) ? dList[0] : null;
+        if (item && item.word.toLowerCase() === lower && Array.isArray(item.defs) && item.defs.length) {
+          const posMap = { n: 'noun', v: 'verb', adj: 'adjective', adv: 'adverb' };
+          const meanings = item.defs.slice(0, 3).map(raw => {
+            const [p, ...rest] = raw.split('\t');
+            return { pos: posMap[p] || 'noun', def: rest.join(' ').trim(), example: '' };
+          });
+          return {
+            word,
+            syllables: syllabifyWord(word),
+            ipa: estimateIpa(word),
+            category: 'Everyday English',
+            synonyms: [],
+            tip: `${syllabifyWord(word).split('·').length} syllable(s). Tap Listen to lock in pronunciation.`,
+            meanings,
+            source: 'WordNet · Live',
+            audioUrl: ''
+          };
+        }
+      }
+    } catch (_) {}
+
+    // If matched in embedded Oxford-style dictionary, return it; otherwise show a clear online not-found notice
+    if (OFFLINE_DICTIONARY[lower]) return offlineLookup(word);
+    return {
+      word,
+      syllables: syllabifyWord(word),
+      ipa: estimateIpa(word),
+      category: 'General',
+      synonyms: [],
+      tip: `No exact online match for "${word}". Check spelling, add a Gemini API key in Settings, or click "Edit details".`,
+      meanings: [{
+        pos: 'noun',
+        def: `No online definition found for "${word}". Click "Edit details" to add your own definition.`,
+        example: ''
+      }],
+      source: 'Not found online',
+      audioUrl: ''
+    };
   }
 
   // =========================================================================
@@ -1881,7 +1962,7 @@
       const val = e.target.value.trim();
       document.getElementById('inlineClearBtn').classList.toggle('hidden', !val);
       clearTimeout(inlineDebounce);
-      if (val.length >= 2) inlineDebounce = setTimeout(() => runInlineEnrich(val), 360);
+      if (val.length >= 2) inlineDebounce = setTimeout(() => runInlineEnrich(val), 550);
       else {
         document.getElementById('inlineEnrichPanel').classList.remove('open');
         document.getElementById('heroCaptureWrap').classList.remove('is-open');
